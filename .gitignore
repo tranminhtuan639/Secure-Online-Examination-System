@@ -1,0 +1,50 @@
+node_modules/
+dist/
+release/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# IDE (tùy team, thường ignore)
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Electron / desktop build
+desktop/dist/
+desktop/out/
+desktop/release/
+*.exe
+*.dmg
+*.AppImage
+*.asar
+
+# Local data (nếu có volume Docker ghi ra thư mục)
+data/
+postgres_data/
+*.db
+*.db-journal
+
+# Cache
+.cache/
+.turbo/
+
+# Khóa và chứng chỉ (kể cả chứng chỉ ký số app Electron sau này)
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Cache của công cụ
+.eslintcache

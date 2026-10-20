@@ -1,0 +1,195 @@
+// Mô hình dữ liệu theo SRS mục 6
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooler, dùng khi chạy ứng dụng
+  directUrl = env("DIRECT_URL")   // kết nối trực tiếp, dùng cho migration
+}
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  LOCKED
+  CLOSED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(STUDENT)
+  displayName  String   @map("display_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  refreshTokens RefreshToken[]
+  questions     Question[]
+  exams         Exam[]
+  attempts      Attempt[]
+  usedRoleCodes RoleCode[]    @relation("RoleCodeUsedBy")
+  createdCodes  RoleCode[]    @relation("RoleCodeCreatedBy")
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  // Cùng một chuỗi phiên dùng chung familyId. Phát hiện dùng lại token cũ thì thu hồi cả family.
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model RoleCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  codeHash  String    @unique @map("code_hash") // chỉ lưu hash, mã gốc hiển thị một lần
+  role      Role
+  expiresAt DateTime  @map("expires_at")
+  usedById  String?   @map("used_by") @db.Uuid
+  usedAt    DateTime? @map("used_at")
+  createdById String? @map("created_by") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  usedBy    User? @relation("RoleCodeUsedBy", fields: [usedById], references: [id])
+  createdBy User? @relation("RoleCodeCreatedBy", fields: [createdById], references: [id])
+
+  @@map("role_codes")
+}
+
+model Question {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  content   String
+  tag       String?
+  points    Float    @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  owner         User           @relation(fields: [ownerId], references: [id])
+  options       QuestionOption[]
+  examQuestions ExamQuestion[]
+  answers       AttemptAnswer[]
+
+  @@index([ownerId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String  @id @default(uuid()) @db.Uuid
+  questionId String  @map("question_id") @db.Uuid
+  content    String
+  isCorrect  Boolean @default(false) @map("is_correct")
+  position   Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model Exam {
+  id              String     @id @default(uuid()) @db.Uuid
+  ownerId         String     @map("owner_id") @db.Uuid
+  title           String
+  joinCode        String     @unique @map("join_code") // hiển thị lại cho giảng viên nên lưu dạng thường
+  opensAt         DateTime   @map("opens_at")
+  closesAt        DateTime   @map("closes_at")
+  durationMinutes Int        @map("duration_minutes")
+  shuffle         Boolean    @default(true)
+  secureMode      Boolean    @default(false) @map("secure_mode")
+  status          ExamStatus @default(DRAFT)
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  owner     User           @relation(fields: [ownerId], references: [id])
+  questions ExamQuestion[]
+  attempts  Attempt[]
+
+  @@index([ownerId])
+  @@map("exams")
+}
+
+model ExamQuestion {
+  examId     String @map("exam_id") @db.Uuid
+  questionId String @map("question_id") @db.Uuid
+  position   Int
+
+  exam     Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@id([examId, questionId])
+  @@map("exam_questions")
+}
+
+model Attempt {
+  id          String        @id @default(uuid()) @db.Uuid
+  examId      String        @map("exam_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  startedAt   DateTime?     @map("started_at")
+  deadline    DateTime?
+  submittedAt DateTime?     @map("submitted_at")
+  status      AttemptStatus @default(NOT_STARTED)
+  score       Float?
+
+  exam    Exam            @relation(fields: [examId], references: [id])
+  user    User            @relation(fields: [userId], references: [id])
+  answers AttemptAnswer[]
+
+  // Mỗi sinh viên chỉ có một lượt làm bài cho mỗi kỳ thi (FR-41, SEC-08)
+  @@unique([examId, userId])
+  @@map("attempts")
+}
+
+model AttemptAnswer {
+  attemptId        String   @map("attempt_id") @db.Uuid
+  questionId       String   @map("question_id") @db.Uuid
+  selectedOptionId String?  @map("selected_option_id") @db.Uuid
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  attempt  Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@id([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+// Chỉ thêm, không sửa/xóa qua API (FR-63)
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  ip         String?
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}

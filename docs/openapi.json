@@ -1,0 +1,1536 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Secure Exam API",
+    "version": "0.1.0",
+    "description": "Hợp đồng API của hệ thống thi trắc nghiệm. Sinh tự động từ schema Zod trong shared/. Endpoint ghi \"Chưa làm\" là hợp đồng đã chốt, chưa có code backend."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Questions"
+    },
+    {
+      "name": "Exams"
+    },
+    {
+      "name": "Attempts"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "RegisterInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": ["email", "password", "displayName"]
+      },
+      "LoginInput": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": ["email", "password"]
+      },
+      "RefreshInput": {
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["refreshToken"]
+      },
+      "RedeemRoleCodeInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 64
+          }
+        },
+        "required": ["code"]
+      },
+      "CreateQuestionInput": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "tag": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "points": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 100,
+            "default": 1
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "isCorrect": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["content", "isCorrect"]
+            },
+            "minItems": 2,
+            "maxItems": 8
+          }
+        },
+        "required": ["content", "options"]
+      },
+      "CreateExamInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "durationMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          },
+          "opensAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "closesAt": {
+            "type": "string",
+            "nullable": true
+          },
+          "shuffle": {
+            "type": "boolean",
+            "default": true
+          },
+          "questionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "minItems": 1
+          }
+        },
+        "required": ["title", "durationMinutes", "opensAt", "closesAt", "questionIds"]
+      },
+      "JoinExamInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$"
+          }
+        },
+        "required": ["code"]
+      },
+      "SaveAnswerInput": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "selectedOptionId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": ["questionId", "selectedOptionId"]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "nullable": true
+              }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["error"]
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["STUDENT", "TEACHER", "ADMIN"]
+          }
+        },
+        "required": ["id", "email", "displayName", "role"]
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "required": ["accessToken", "refreshToken", "user"]
+      },
+      "RefreshResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          }
+        },
+        "required": ["accessToken", "refreshToken"]
+      },
+      "Question": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "content": {
+            "type": "string"
+          },
+          "tag": {
+            "type": "string",
+            "nullable": true
+          },
+          "points": {
+            "type": "number"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "isCorrect": {
+                  "type": "boolean"
+                }
+              },
+              "required": ["id", "content", "isCorrect"]
+            }
+          }
+        },
+        "required": ["id", "content", "tag", "points", "options"]
+      },
+      "Exam": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "joinCode": {
+            "type": "string",
+            "description": "Chỉ giảng viên chủ kỳ thi mới thấy"
+          },
+          "opensAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMinutes": {
+            "type": "integer"
+          },
+          "shuffle": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["DRAFT", "PUBLISHED", "LOCKED", "CLOSED"]
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "joinCode",
+          "opensAt",
+          "closesAt",
+          "durationMinutes",
+          "shuffle",
+          "status"
+        ]
+      },
+      "JoinExamResponse": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "examTitle": {
+            "type": "string"
+          },
+          "opensAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closesAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMinutes": {
+            "type": "integer"
+          }
+        },
+        "required": ["attemptId", "examTitle", "opensAt", "closesAt", "durationMinutes"]
+      },
+      "AttemptStartResponse": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Giờ server, client dùng để hiển thị đồng hồ"
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "content": {
+                  "type": "string"
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "content": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["id", "content"]
+                  }
+                }
+              },
+              "required": ["id", "content", "options"]
+            }
+          },
+          "savedAnswers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "questionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "selectedOptionId": {
+                  "type": "string",
+                  "nullable": true,
+                  "format": "uuid"
+                }
+              },
+              "required": ["questionId", "selectedOptionId"]
+            }
+          }
+        },
+        "required": ["attemptId", "serverTime", "deadline", "questions", "savedAnswers"]
+      },
+      "AttemptResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "examId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["NOT_STARTED", "IN_PROGRESS", "SUBMITTED", "EXPIRED"]
+          },
+          "score": {
+            "type": "number",
+            "nullable": true
+          },
+          "submittedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "examId", "status", "score", "submittedAt"]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Kiểm tra backend còn sống",
+        "description": "Không cần đăng nhập. Trạng thái: Đã làm. Dùng cho cron ping giữ Render không ngủ.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok"]
+                    },
+                    "time": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": ["status", "time"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Đăng ký (vai trò mặc định STUDENT)",
+        "description": "Không cần đăng nhập. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-01. Rate limit.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 128
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  }
+                },
+                "required": ["email", "password", "displayName"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đã tạo tài khoản",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email đã tồn tại",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Đăng nhập",
+        "description": "Không cần đăng nhập. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-02. Rate limit, thông báo lỗi chung chung (không nói sai email hay sai mật khẩu).",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sai email hoặc mật khẩu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Thử quá nhiều lần",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Làm mới token (rotation)",
+        "description": "Không cần đăng nhập. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-03, SEC-02. Dùng lại refresh token cũ sẽ thu hồi cả chuỗi phiên.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["refreshToken"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Refresh token sai, hết hạn hoặc đã bị thu hồi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Đăng xuất (thu hồi refresh token)",
+        "description": "Cần đăng nhập (mọi vai trò). Trạng thái: Chưa làm (hợp đồng đã chốt). FR-04.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["refreshToken"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Đã đăng xuất"
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": ["Account"],
+        "summary": "Thông tin tài khoản hiện tại",
+        "description": "Cần đăng nhập (mọi vai trò). Trạng thái: Chưa làm (hợp đồng đã chốt). FR-05.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/role-code": {
+      "post": {
+        "tags": ["Account"],
+        "summary": "Nhập mã vai trò để lên giảng viên",
+        "description": "Cần đăng nhập (mọi vai trò). Trạng thái: Chưa làm (hợp đồng đã chốt). FR-10..13, SEC-15. Mã dùng một lần, rate limit. Trả token mới để vai trò có hiệu lực.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 64
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/questions": {
+      "post": {
+        "tags": ["Questions"],
+        "summary": "Tạo câu hỏi",
+        "description": "Vai trò: TEACHER. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-20.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "tag": {
+                    "type": "string",
+                    "maxLength": 50
+                  },
+                  "points": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100,
+                    "default": 1
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "isCorrect": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["content", "isCorrect"]
+                    },
+                    "minItems": 2,
+                    "maxItems": 8
+                  }
+                },
+                "required": ["content", "options"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đã tạo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Question"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Questions"],
+        "summary": "Danh sách câu hỏi của tôi",
+        "description": "Vai trò: TEACHER. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-22. Chỉ trả câu hỏi do chính giảng viên tạo.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Question"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exams": {
+      "post": {
+        "tags": ["Exams"],
+        "summary": "Tạo kỳ thi (hệ thống tự sinh mã tham gia)",
+        "description": "Vai trò: TEACHER. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-30..32.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "durationMinutes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 600
+                  },
+                  "opensAt": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "closesAt": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "shuffle": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "questionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": ["title", "durationMinutes", "opensAt", "closesAt", "questionIds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Đã tạo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exams/{id}": {
+      "get": {
+        "tags": ["Exams"],
+        "summary": "Chi tiết kỳ thi",
+        "description": "Vai trò: TEACHER. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-35. Chỉ chủ kỳ thi.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Exam"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Không tìm thấy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exams/join": {
+      "post": {
+        "tags": ["Exams"],
+        "summary": "Nhập mã tham gia kỳ thi",
+        "description": "Vai trò: STUDENT. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-40, FR-41, SEC-16. Rate limit chặt. Biết mã chưa có nghĩa là xem được đề.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$"
+                  }
+                },
+                "required": ["code"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đã tạo (hoặc tìm lại) lượt làm bài",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinExamResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Kỳ thi chưa mở, đã đóng hoặc đang bị khóa",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attempts/{id}/start": {
+      "post": {
+        "tags": ["Attempts"],
+        "summary": "Bắt đầu làm bài (hoặc tiếp tục lượt đang làm)",
+        "description": "Vai trò: STUDENT. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-42, FR-43, FR-47. Server tính deadline. Đề không kèm đáp án đúng.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptStartResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attempts/{id}/answers": {
+      "put": {
+        "tags": ["Attempts"],
+        "summary": "Lưu đáp án một câu (autosave)",
+        "description": "Vai trò: STUDENT. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-44. Từ chối sau deadline.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "questionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "selectedOptionId": {
+                    "type": "string",
+                    "nullable": true,
+                    "format": "uuid"
+                  }
+                },
+                "required": ["questionId", "selectedOptionId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Đã lưu"
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Đã hết giờ hoặc đã nộp bài",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attempts/{id}/submit": {
+      "post": {
+        "tags": ["Attempts"],
+        "summary": "Nộp bài",
+        "description": "Vai trò: STUDENT. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-45, FR-50, SEC-08. Nộp lần hai trả 409, không chấm lại.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Đã chấm điểm",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttemptResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dữ liệu không hợp lệ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Đã nộp trước đó",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/attempts/me": {
+      "get": {
+        "tags": ["Attempts"],
+        "summary": "Lịch sử làm bài của tôi",
+        "description": "Vai trò: STUDENT. Trạng thái: Chưa làm (hợp đồng đã chốt). FR-51. Chỉ trả lượt của chính sinh viên.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttemptResult"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Chưa đăng nhập hoặc token hết hạn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Không đủ quyền hoặc không phải chủ tài nguyên",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

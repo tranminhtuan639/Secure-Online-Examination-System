@@ -1,0 +1,38 @@
+{
+  "name": "@exam/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ứng dụng thi Secure Exam (Electron)",
+  "author": "Nhóm Secure Exam",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && electron .",
+    "typecheck": "tsc --noEmit",
+    "dist": "npm run build && electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "vn.edu.secureexam",
+    "productName": "Secure Exam",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

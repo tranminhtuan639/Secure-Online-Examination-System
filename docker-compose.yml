@@ -1,0 +1,22 @@
+# PostgreSQL chạy local để dev và load test (không đụng vào Supabase)
+services:
+  db:
+    image: postgres:16
+    container_name: secure-exam-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: exam
+      POSTGRES_PASSWORD: exam
+      POSTGRES_DB: exam
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U exam -d exam']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
