@@ -1,4 +1,4 @@
-// Mô hình dữ liệu theo SRS mục 6
+// Mô hình dữ liệu theo SRS v1.0 mục 6 và các quyết định v1.1
 generator client {
   provider = "prisma-client-js"
 }
@@ -6,19 +6,16 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooler, dùng khi chạy ứng dụng
-  directUrl = env("DIRECT_URL")   // kết nối trực tiếp, dùng cho migration
+  directUrl = env("DIRECT_URL") // kết nối trực tiếp, dùng cho migration
 }
 
 enum Role {
   STUDENT
-  TEACHER
-  ADMIN
+  LECTURER
 }
 
 enum ExamStatus {
-  DRAFT
-  PUBLISHED
-  LOCKED
+  ACTIVE
   CLOSED
 }
 
@@ -27,6 +24,22 @@ enum AttemptStatus {
   IN_PROGRESS
   SUBMITTED
   EXPIRED
+}
+
+enum ClientType {
+  WEB
+  DESKTOP
+}
+
+enum ExamEventType {
+  ATTEMPT_STARTED
+  ATTEMPT_SUBMITTED
+  ATTEMPT_EXPIRED
+  SECURE_MODE_ENTER
+  FOCUS_LOST
+  FOCUS_GAINED
+  SECURE_MODE_EXIT
+  WINDOW_CLOSE_REQUESTED
 }
 
 model User {
@@ -41,19 +54,17 @@ model User {
   questions     Question[]
   exams         Exam[]
   attempts      Attempt[]
-  usedRoleCodes RoleCode[]    @relation("RoleCodeUsedBy")
-  createdCodes  RoleCode[]    @relation("RoleCodeCreatedBy")
-  auditLogs     AuditLog[]
+  usedRoleCodes RoleCode[]
 
   @@map("users")
 }
 
+// FR-07: refresh token đơn giản (7 ngày, lưu hash, đăng xuất thì thu hồi).
+// Rotation và phát hiện dùng lại token cũ là P2 (FR-06), khi đó mới thêm family_id.
 model RefreshToken {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @map("user_id") @db.Uuid
   tokenHash String    @unique @map("token_hash")
-  // Cùng một chuỗi phiên dùng chung familyId. Phát hiện dùng lại token cũ thì thu hồi cả family.
-  familyId  String    @map("family_id") @db.Uuid
   expiresAt DateTime  @map("expires_at")
   revokedAt DateTime? @map("revoked_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -61,22 +72,19 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([familyId])
   @@map("refresh_tokens")
 }
 
+// FR-11..13, SEC-06: chỉ lưu hash, dùng một lần, có hạn. Mã chỉ nâng lên LECTURER nên không cần cột role.
 model RoleCode {
   id        String    @id @default(uuid()) @db.Uuid
-  codeHash  String    @unique @map("code_hash") // chỉ lưu hash, mã gốc hiển thị một lần
-  role      Role
+  codeHash  String    @unique @map("code_hash")
   expiresAt DateTime  @map("expires_at")
   usedById  String?   @map("used_by") @db.Uuid
   usedAt    DateTime? @map("used_at")
-  createdById String? @map("created_by") @db.Uuid
   createdAt DateTime  @default(now()) @map("created_at")
 
-  usedBy    User? @relation("RoleCodeUsedBy", fields: [usedById], references: [id])
-  createdBy User? @relation("RoleCodeCreatedBy", fields: [createdById], references: [id])
+  usedBy User? @relation(fields: [usedById], references: [id])
 
   @@map("role_codes")
 }
@@ -85,11 +93,10 @@ model Question {
   id        String   @id @default(uuid()) @db.Uuid
   ownerId   String   @map("owner_id") @db.Uuid
   content   String
-  tag       String?
   points    Float    @default(1)
   createdAt DateTime @default(now()) @map("created_at")
 
-  owner         User           @relation(fields: [ownerId], references: [id])
+  owner         User             @relation(fields: [ownerId], references: [id])
   options       QuestionOption[]
   examQuestions ExamQuestion[]
   answers       AttemptAnswer[]
@@ -119,9 +126,7 @@ model Exam {
   opensAt         DateTime   @map("opens_at")
   closesAt        DateTime   @map("closes_at")
   durationMinutes Int        @map("duration_minutes")
-  shuffle         Boolean    @default(true)
-  secureMode      Boolean    @default(false) @map("secure_mode")
-  status          ExamStatus @default(DRAFT)
+  status          ExamStatus @default(ACTIVE)
   createdAt       DateTime   @default(now()) @map("created_at")
 
   owner     User           @relation(fields: [ownerId], references: [id])
@@ -153,13 +158,18 @@ model Attempt {
   submittedAt DateTime?     @map("submitted_at")
   status      AttemptStatus @default(NOT_STARTED)
   score       Float?
+  // Loại client của lần vào gần nhất (start hoặc tiếp tục). Chỉ là khai báo từ client, không phải bằng chứng.
+  client      ClientType?
 
   exam    Exam            @relation(fields: [examId], references: [id])
   user    User            @relation(fields: [userId], references: [id])
   answers AttemptAnswer[]
+  events  ExamEvent[]
 
-  // Mỗi sinh viên chỉ có một lượt làm bài cho mỗi kỳ thi (FR-41, SEC-08)
+  // Mỗi sinh viên chỉ có một lượt làm bài cho mỗi kỳ thi (FR-41, SEC-12)
   @@unique([examId, userId])
+  // Truy vấn đóng các lượt quá hạn khi đọc (FR-46): status = IN_PROGRESS và deadline < now()
+  @@index([status, deadline])
   @@map("attempts")
 }
 
@@ -176,20 +186,17 @@ model AttemptAnswer {
   @@map("attempt_answers")
 }
 
-// Chỉ thêm, không sửa/xóa qua API (FR-63)
-model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  actorId    String?  @map("actor_id") @db.Uuid
-  action     String
-  targetType String?  @map("target_type")
-  targetId   String?  @map("target_id")
-  ip         String?
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+// FR-60..63. receivedAt do server đặt, clientOccurredAt chỉ để tham khảo vì client có thể bị sửa.
+model ExamEvent {
+  id               String        @id @default(uuid()) @db.Uuid
+  attemptId        String        @map("attempt_id") @db.Uuid
+  type             ExamEventType
+  clientOccurredAt DateTime?     @map("client_occurred_at")
+  receivedAt       DateTime      @default(now()) @map("received_at")
+  metadata         Json?
 
-  actor User? @relation(fields: [actorId], references: [id])
+  attempt Attempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
-  @@index([actorId])
-  @@index([action, createdAt])
-  @@map("audit_logs")
+  @@index([attemptId, receivedAt])
+  @@map("exam_events")
 }

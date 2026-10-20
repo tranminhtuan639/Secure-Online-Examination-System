@@ -15,7 +15,7 @@ function createWindow() {
     height: 800,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      // Cấu hình bảo mật Electron (SEC-13)
+      // Cấu hình bảo mật Electron (SEC-10)
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
