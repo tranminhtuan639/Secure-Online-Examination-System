@@ -1,0 +1,11 @@
+#!/bin/sh
+# Chan push truc tiep len main va develop (luoi an toan phia client)
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/develop)
+      echo "Khong push thang len ${remote_ref#refs/heads/}. Hay tao nhanh feature/... va mo Pull Request."
+      exit 1
+      ;;
+  esac
+done
+exit 0
