@@ -7,7 +7,7 @@ export const notFoundHandler: RequestHandler = (_req, res) => {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Không tìm thấy đường dẫn' } });
 };
 
-// Error handler tập trung: không lộ stack trace hay chi tiết nội bộ ra ngoài (SEC-10)
+// Error handler tập trung: không lộ stack trace hay chi tiết nội bộ ra ngoài (SEC-08)
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) {
     res.status(400).json({

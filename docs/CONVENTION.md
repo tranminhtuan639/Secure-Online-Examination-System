@@ -53,7 +53,7 @@ Người review kiểm tra: đúng yêu cầu trong SRS, có test, không lộ s
 - Lỗi nghiệp vụ ném bằng `AppError` (`src/lib/errors.ts`). Không `try/catch` rồi nuốt lỗi. Error handler tập trung lo phần còn lại.
 - Đặt tên: file và thư mục `kebab-case`, biến và hàm `camelCase`, type và class `PascalCase`, hằng số `UPPER_SNAKE_CASE`. Bảng DB `snake_case` (đã có `@map` trong Prisma).
 - Format và lint tự chạy khi commit (husky). Đừng tắt, và đừng tranh cãi style, `prettier` quyết định.
-- Comment giải thích **vì sao**, không lặp lại code làm gì. Code liên quan yêu cầu SRS thì ghi mã (`FR-44`, `SEC-07`).
+- Comment giải thích **vì sao**, không lặp lại code làm gì. Code liên quan yêu cầu SRS thì ghi mã (`FR-44`, `SEC-05`).
 
 ## 3. API (contract-first)
 
@@ -108,7 +108,7 @@ Quy ước endpoint:
 - [ ] Đầu vào được validate bằng Zod. Thông báo lỗi không lộ stack trace hay chi tiết nội bộ.
 - [ ] Không ghi mật khẩu, token, mã vai trò vào log hay vào response.
 - [ ] Endpoint nhạy cảm (đăng nhập, nhập mã, nộp bài) có rate limit.
-- [ ] Hành động quan trọng được ghi vào `audit_logs`.
+- [ ] Hành động quan trọng (đăng nhập, dùng mã vai trò, bắt đầu/nộp bài, sự kiện client) được ghi log phù hợp.
 - [ ] Không có secret trong code, trong commit hay trong lịch sử Git.
 
 ## 7. Môi trường và secret
@@ -130,10 +130,10 @@ Một việc được coi là xong khi:
 
 ## 9. Phân công review (gợi ý)
 
-| Mảng                                             | Người làm chính | Người review chính |
-| ------------------------------------------------ | --------------- | ------------------ |
-| Web, nghiệp vụ thi, deploy                       | Thành viên 1    | Thành viên 2       |
-| Xác thực, phân quyền, chống nộp trùng, audit log | Thành viên 2    | Thành viên 3       |
-| Electron, Socket.IO, threat model, load test     | Thành viên 3    | Thành viên 2       |
+| Mảng                                                        | Người làm chính | Người review chính |
+| ----------------------------------------------------------- | --------------- | ------------------ |
+| Web, câu hỏi, kỳ thi, làm bài, deploy                       | Thành viên 1    | Thành viên 2       |
+| Xác thực, role code, phân quyền, test bảo mật, threat model | Thành viên 2    | Thành viên 3       |
+| Electron, event, dashboard, đóng gói                        | Thành viên 3    | Thành viên 2       |
 
 Điền tên thật.
